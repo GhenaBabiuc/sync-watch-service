@@ -1,0 +1,123 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    position: relative;
+    transition: all var(--transition-speed) ease;
+    overflow-x: hidden;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-image);
+    z-index: -2;
+    transition: all var(--animation-speed) ease;
+}
+
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-overlay);
+    z-index: -1;
+    transition: all var(--animation-speed) ease;
+}
+
+.container {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    animation: fadeIn var(--animation-speed) ease;
+}
+
+.main-content {
+    flex: 1;
+}
+
+.main-content h2 {
+    margin-bottom: 20px;
+    font-weight: 300;
+}
+
+.sidebar {
+    width: 350px;
+    background: var(--bg-secondary);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px var(--shadow-color);
+    backdrop-filter: blur(10px);
+    animation: slideIn var(--animation-speed) ease;
+    transition: all var(--transition-speed) ease;
+}
+
+.sidebar:hover {
+    box-shadow: 0 12px 48px var(--shadow-color);
+    transform: translateY(-2px);
+}
+
+.hidden {
+    display: none !important;
+}
+
+.loading-message,
+.empty-message {
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+}

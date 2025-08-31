@@ -1,0 +1,38 @@
+server:
+  port: 3000
+
+socketio:
+  hostname: 0.0.0.0
+  port: 3001
+  boss-threads: 1
+  worker-threads: 100
+  allow-custom-requests: true
+  upgrade-timeout: 10000
+  ping-timeout: 60000
+  ping-interval: 25000
+
+spring:
+  web:
+    resources:
+      static-locations: classpath:/static/
+      cache:
+        period: 86400
+
+app:
+  video:
+    directory: videos
+    cache-ttl: 30000
+
+logging:
+  level:
+    com.corundumstudio.socketio: INFO
+    com.example.syncwatch: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/sync-watch.log
+    max-size: 10MB
+    max-history: 30
