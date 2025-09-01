@@ -1,5 +1,5 @@
 window.UIHandlers = {
-    _lastVideoList: null,
+    _lastMoviesList: null,
     _lastRoomsList: null,
     _updateTimeoutId: null,
     _loadingState: new Set(),
@@ -21,7 +21,7 @@ window.UIHandlers = {
         this.focusNicknameInput();
         this.startOptimizedTimeUpdater();
 
-        this._preloadVideoList();
+        this._preloadMoviesList();
     },
 
     setupEventListeners() {
@@ -39,7 +39,7 @@ window.UIHandlers = {
             'create-room-btn': () => this._handleCreateRoom(),
             'cancel-create-btn': () => this._handleCancelCreate(),
             'leave-room-btn': () => this._handleLeaveRoom(),
-            'btn-load': () => this._handleLoadVideo()
+            'btn-load': () => this._handleLoadMovie()
         };
 
         const handler = handlers[target.id];
@@ -116,19 +116,19 @@ window.UIHandlers = {
         }
     },
 
-    _handleLoadVideo() {
+    _handleLoadMovie() {
         if (!AppState.currentRoomId) {
             this._showError('Сначала присоединитесь к комнате');
             return;
         }
 
-        const filename = AppState.elements.selectVideos.value;
-        if (!filename) {
-            this._showError('Сначала выберите видео из списка');
+        const movieId = AppState.elements.selectMovies.value;
+        if (!movieId) {
+            this._showError('Сначала выберите фильм из списка');
             return;
         }
 
-        AppState.socket.emit('select-video', filename);
+        AppState.socket.emit('select-movie', parseInt(movieId));
     },
 
     _handleRoomClick(roomElement) {
@@ -142,24 +142,24 @@ window.UIHandlers = {
     },
 
     _setupVideoHandlers() {
-        this._preloadVideoList();
+        this._preloadMoviesList();
     },
 
-    _preloadVideoList() {
-        setTimeout(() => this.loadVideoList(), 100);
+    _preloadMoviesList() {
+        setTimeout(() => this.loadMoviesList(), 100);
     },
 
-    async loadVideoList() {
-        const cacheKey = 'videoList';
+    async loadMoviesList() {
+        const cacheKey = 'moviesList';
         if (this._loadingState.has(cacheKey)) return;
 
         this._loadingState.add(cacheKey);
-        const {selectVideos} = AppState.elements;
+        const {selectMovies} = AppState.elements;
 
         try {
-            selectVideos.innerHTML = '<option value="">— загружаем список видео —</option>';
+            selectMovies.innerHTML = '<option value="">— загружаем список фильмов —</option>';
 
-            const response = await fetch('/api/videos');
+            const response = await fetch('/api/movies');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -167,38 +167,39 @@ window.UIHandlers = {
             const list = await response.json();
 
             const listString = JSON.stringify(list);
-            if (this._lastVideoList === listString) {
+            if (this._lastMoviesList === listString) {
                 return;
             }
-            this._lastVideoList = listString;
+            this._lastMoviesList = listString;
 
             const fragment = document.createDocumentFragment();
 
             if (!Array.isArray(list) || list.length === 0) {
                 const option = document.createElement('option');
-                option.textContent = list.length === 0 ? 'Видео не найдены' : 'Ошибка загрузки списка';
+                option.textContent = list.length === 0 ? 'Фильмы не найдены' : 'Ошибка загрузки списка';
                 option.value = '';
                 fragment.appendChild(option);
             } else {
                 const headerOption = document.createElement('option');
-                headerOption.textContent = '— выбрать видео —';
+                headerOption.textContent = '— выбрать фильм —';
                 headerOption.value = '';
                 fragment.appendChild(headerOption);
 
-                list.forEach(filename => {
+                list.forEach(movie => {
                     const option = document.createElement('option');
-                    option.textContent = filename;
-                    option.value = filename;
+                    const title = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+                    option.textContent = title;
+                    option.value = movie.id;
                     fragment.appendChild(option);
                 });
             }
 
-            selectVideos.innerHTML = '';
-            selectVideos.appendChild(fragment);
+            selectMovies.innerHTML = '';
+            selectMovies.appendChild(fragment);
 
         } catch (error) {
-            console.error('Ошибка загрузки списка видео:', error);
-            selectVideos.innerHTML = `<option value="">Ошибка: ${error.message}</option>`;
+            console.error('Ошибка загрузки списка фильмов:', error);
+            selectMovies.innerHTML = `<option value="">Ошибка: ${error.message}</option>`;
         } finally {
             this._loadingState.delete(cacheKey);
         }
@@ -222,7 +223,7 @@ window.UIHandlers = {
 
     _performUIUpdate() {
         const {
-            videoList, videoPlayer, statusSection,
+            movieList, videoPlayer, statusSection,
             noRoomMessage, currentRoomName, usersContainer,
             roomsSection, usersSection
         } = AppState.elements;
@@ -230,12 +231,12 @@ window.UIHandlers = {
         const inRoom = !!AppState.currentRoomId;
 
         const elementsToShow = inRoom ?
-            [videoList, videoPlayer, statusSection] :
+            [movieList, videoPlayer, statusSection] :
             [noRoomMessage];
 
         const elementsToHide = inRoom ?
             [noRoomMessage] :
-            [videoList, videoPlayer, statusSection];
+            [movieList, videoPlayer, statusSection];
 
         const sidebarElementsToShow = inRoom ? [usersSection] : [roomsSection];
         const sidebarElementsToHide = inRoom ? [roomsSection] : [usersSection];
@@ -295,6 +296,7 @@ window.UIHandlers = {
             <div class="room-name">${this._escapeHtml(room.id)}</div>
             <div class="room-info">
                 <span class="room-users">👥 ${room.users}</span>
+                <span class="room-video">🎬 ${this._escapeHtml(room.video)}</span>
                 <span class="room-status">${room.playing ? '▶️ Воспроизводится' : '⏸️ На паузе'}</span>
             </div>
         `;
@@ -302,14 +304,15 @@ window.UIHandlers = {
         return roomDiv;
     },
 
-    loadVideo(filename, startTime = 0, autoplay = false) {
+    loadMovie(movieId, startTime = 0, autoplay = false) {
         const {videoPlayer, statusVideo, statusState} = AppState.elements;
 
-        const url = `/videos/${encodeURIComponent(filename)}`;
+        const url = `/api/movies/${movieId}/stream`;
         videoPlayer.src = url;
         videoPlayer.load();
 
-        statusVideo.textContent = filename;
+        this._loadMovieInfo(movieId);
+
         statusState.textContent = autoplay ? '▶️ играет' : '⏸️ на паузе';
 
         const handleLoadedData = () => {
@@ -325,6 +328,20 @@ window.UIHandlers = {
         };
 
         videoPlayer.addEventListener('loadeddata', handleLoadedData, {once: true});
+    },
+
+    async _loadMovieInfo(movieId) {
+        try {
+            const response = await fetch(`/api/movies/${movieId}`);
+            if (response.ok) {
+                const movie = await response.json();
+                const {statusVideo} = AppState.elements;
+                const title = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+                statusVideo.textContent = title;
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки информации о фильме:', error);
+        }
     },
 
     updateUsersList(usersList) {

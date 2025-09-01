@@ -7,7 +7,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.syncwatchservice.dto.JoinRoomRequest;
-import org.example.syncwatchservice.dto.LoadVideoRequest;
+import org.example.syncwatchservice.dto.MovieStreamRequest;
 import org.example.syncwatchservice.dto.RoomJoinedResponse;
 import org.example.syncwatchservice.dto.VideoCommandResult;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,13 +31,13 @@ public class SocketIOService {
         server.addEventListener("leave-room", Void.class, this::onLeaveRoom);
         server.addEventListener("get-rooms", Void.class, this::onGetRooms);
         server.addEventListener("update-time", Double.class, this::onUpdateTime);
-        server.addEventListener("select-video", String.class, this::onSelectVideo);
+        server.addEventListener("select-movie", Long.class, this::onSelectMovie); // Изменено на Long
         server.addEventListener("play", Double.class, this::onPlay);
         server.addEventListener("pause", Double.class, this::onPause);
         server.addEventListener("seek", Double.class, this::onSeek);
 
         server.start();
-        log.info("Socket.IO сервер запущен на порту {}", server.getConfiguration().getPort());
+        log.info("Socket.IO сервер запущен на порту {} с поддержкой базы данных", server.getConfiguration().getPort());
     }
 
     @PreDestroy
@@ -52,6 +52,7 @@ public class SocketIOService {
         return client -> {
             log.info("Новое подключение: {}", client.getSessionId());
             client.sendEvent("rooms-list", roomManager.getRoomsList());
+            client.sendEvent("movies-list", videoService.getMoviesList());
         };
     }
 
@@ -62,8 +63,15 @@ public class SocketIOService {
 
             String roomId = roomManager.leaveRoom(socketId);
             if (roomId != null) {
-                server.getRoomOperations(roomId).sendEvent("users-list",
-                        roomManager.getUsersList(roomId));
+                if (roomManager.getRoom(roomId) != null) {
+                    server.getRoomOperations(roomId).sendEvent("users-list",
+                            roomManager.getUsersList(roomId));
+                } else {
+                    server.getRoomOperations(roomId).getClients().forEach(c -> {
+                        c.leaveRoom(roomId);
+                    });
+                    log.info("Все клиенты отключены от удаленной комнаты: {}", roomId);
+                }
             }
 
             server.getBroadcastOperations().sendEvent("rooms-list", roomManager.getRoomsList());
@@ -109,8 +117,13 @@ public class SocketIOService {
         var room = roomManager.joinRoom(client.getSessionId().toString(), roomId, nickname);
         client.joinRoom(roomId);
 
+        String videoUrl = null;
+        if (room.getMovieId() != null) {
+            videoUrl = videoService.getVideoStreamingUrl(room.getMovieId()).orElse(null);
+        }
+
         RoomJoinedResponse response = new RoomJoinedResponse(
-                roomId, room.getVideo(), room.getTime(), room.isPlaying()
+                roomId, videoUrl, room.getTime(), room.isPlaying()
         );
         client.sendEvent("room-joined", response);
 
@@ -125,13 +138,21 @@ public class SocketIOService {
         String roomId = roomManager.leaveRoom(socketId);
         if (roomId != null) {
             client.leaveRoom(roomId);
-            server.getRoomOperations(roomId).sendEvent("users-list", roomManager.getUsersList(roomId));
+
+            if (roomManager.getRoom(roomId) != null) {
+                server.getRoomOperations(roomId).sendEvent("users-list",
+                        roomManager.getUsersList(roomId));
+            } else {
+                log.info("Комната {} была удалена после выхода последнего пользователя", roomId);
+            }
+
             server.getBroadcastOperations().sendEvent("rooms-list", roomManager.getRoomsList());
         }
     }
 
     private void onGetRooms(com.corundumstudio.socketio.SocketIOClient client, Void data, com.corundumstudio.socketio.AckRequest ackSender) {
         client.sendEvent("rooms-list", roomManager.getRoomsList());
+        client.sendEvent("movies-list", videoService.getMoviesList());
     }
 
     private void onUpdateTime(com.corundumstudio.socketio.SocketIOClient client, Double time, com.corundumstudio.socketio.AckRequest ackSender) {
@@ -139,9 +160,9 @@ public class SocketIOService {
         roomManager.updateUserTime(client.getSessionId().toString(), time);
     }
 
-    private void onSelectVideo(com.corundumstudio.socketio.SocketIOClient client, String filename, com.corundumstudio.socketio.AckRequest ackSender) {
-        if (filename == null || filename.trim().isEmpty()) {
-            client.sendEvent("error", "Некорректное имя файла");
+    private void onSelectMovie(com.corundumstudio.socketio.SocketIOClient client, Long movieId, com.corundumstudio.socketio.AckRequest ackSender) {
+        if (movieId == null || movieId <= 0) {
+            client.sendEvent("error", "Некорректный ID фильма");
             return;
         }
 
@@ -153,17 +174,27 @@ public class SocketIOService {
             return;
         }
 
-        if (!videoService.isValidVideoFile(filename)) {
-            client.sendEvent("error", "Небезопасное имя файла или файл не найден");
+        if (!videoService.movieExists(movieId)) {
+            client.sendEvent("error", "Фильм не найден или недоступен");
             return;
         }
 
-        log.info("Выбрано видео {} в комнате {}", filename, roomId);
+        boolean success = roomManager.selectMovie(socketId, movieId);
+        if (!success) {
+            client.sendEvent("error", "Не удалось выбрать фильм");
+            return;
+        }
 
-        roomManager.selectVideo(socketId, filename);
+        log.info("Выбран фильм ID {} в комнате {}", movieId, roomId);
 
-        LoadVideoRequest loadRequest = new LoadVideoRequest(filename, 0);
-        server.getRoomOperations(roomId).sendEvent("load-video", loadRequest);
+        String videoUrl = videoService.getVideoStreamingUrl(movieId).orElse(null);
+        if (videoUrl == null) {
+            client.sendEvent("error", "Не удалось получить URL для воспроизведения");
+            return;
+        }
+
+        MovieStreamRequest streamRequest = new MovieStreamRequest(movieId, 0);
+        server.getRoomOperations(roomId).sendEvent("load-movie", streamRequest);
 
         server.getRoomOperations(roomId).sendEvent("users-list", roomManager.getUsersList(roomId));
         server.getBroadcastOperations().sendEvent("rooms-list", roomManager.getRoomsList());

@@ -13,9 +13,10 @@ window.SocketHandlers = {
         const socket = AppState.socket;
 
         socket.on('rooms-list', this._handleRoomsList.bind(this));
+        socket.on('movies-list', this._handleMoviesList.bind(this));
         socket.on('room-created', this._handleRoomCreated.bind(this));
         socket.on('room-joined', this._handleRoomJoined.bind(this));
-        socket.on('load-video', this._handleLoadVideo.bind(this));
+        socket.on('load-movie', this._handleLoadMovie.bind(this));
         socket.on('users-list', this._handleUsersList.bind(this));
         socket.on('error', this._handleServerError.bind(this));
         socket.on('sync-play', this._handleSyncPlay.bind(this));
@@ -30,6 +31,42 @@ window.SocketHandlers = {
     _handleRoomsList(roomsList) {
         console.log('Получен список комнат:', roomsList);
         UIHandlers.updateRoomsList(roomsList);
+    },
+
+    _handleMoviesList(moviesList) {
+        console.log('Получен список фильмов:', moviesList);
+        // Обновляем выпадающий список фильмов
+        this._updateMoviesDropdown(moviesList);
+    },
+
+    _updateMoviesDropdown(moviesList) {
+        const {selectMovies} = AppState.elements;
+        if (!selectMovies) return;
+
+        const fragment = document.createDocumentFragment();
+
+        const headerOption = document.createElement('option');
+        headerOption.textContent = '— выбрать фильм —';
+        headerOption.value = '';
+        fragment.appendChild(headerOption);
+
+        if (Array.isArray(moviesList) && moviesList.length > 0) {
+            moviesList.forEach(movie => {
+                const option = document.createElement('option');
+                const title = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+                option.textContent = title;
+                option.value = movie.id;
+                fragment.appendChild(option);
+            });
+        } else {
+            const option = document.createElement('option');
+            option.textContent = 'Фильмы не найдены';
+            option.value = '';
+            fragment.appendChild(option);
+        }
+
+        selectMovies.innerHTML = '';
+        selectMovies.appendChild(fragment);
     },
 
     _handleRoomCreated(roomId) {
@@ -48,9 +85,10 @@ window.SocketHandlers = {
         AppState.currentRoomId = data.roomId;
         UIHandlers.updateUIState();
 
-        if (data.video) {
-            console.log('Загружаем видео:', data.video);
-            UIHandlers.loadVideo(data.video, data.time, data.playing);
+        if (data.video && data.video !== 'Не выбрано') {
+            console.log('Загружаем видео по URL:', data.video);
+            // В новой версии мы получаем прямой URL для стриминга
+            this._loadVideoFromUrl(data.video, data.time, data.playing);
         } else {
             this._resetVideoStatus();
         }
@@ -60,10 +98,33 @@ window.SocketHandlers = {
         }, 200);
     },
 
-    _handleLoadVideo(payload) {
-        console.log('Загружаем новое видео:', payload);
+    _loadVideoFromUrl(videoUrl, startTime = 0, playing = false) {
+        const {videoPlayer, statusVideo, statusState} = AppState.elements;
+
+        videoPlayer.src = videoUrl;
+        videoPlayer.load();
+
+        statusState.textContent = playing ? '▶️ играет' : '⏸️ на паузе';
+
+        const handleLoadedData = () => {
+            videoPlayer.currentTime = startTime;
+            if (playing) {
+                AppState.isSyncing = true;
+                videoPlayer.play().then(() => {
+                    setTimeout(() => {
+                        AppState.isSyncing = false;
+                    }, 100);
+                }).catch(console.error);
+            }
+        };
+
+        videoPlayer.addEventListener('loadeddata', handleLoadedData, {once: true});
+    },
+
+    _handleLoadMovie(payload) {
+        console.log('Загружаем новый фильм:', payload);
         if (AppState.currentRoomId) {
-            UIHandlers.loadVideo(payload.video, payload.time, false);
+            UIHandlers.loadMovie(payload.movieId, payload.startTime, false);
         }
     },
 

@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @NoArgsConstructor
 public class Room {
     private String id;
-    private String video;
+    private Long movieId;
     private double time;
     private boolean playing;
     private Map<String, User> users = new ConcurrentHashMap<>();
@@ -21,7 +21,7 @@ public class Room {
 
     public Room(String id) {
         this.id = id;
-        this.video = null;
+        this.movieId = null;
         this.time = 0;
         this.playing = false;
         this.createdAt = LocalDateTime.now();

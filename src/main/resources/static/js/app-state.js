@@ -39,7 +39,7 @@ window.AppState = {
 
         this._initErrorHandling();
         this.isInitialized = true;
-        console.log('✅ AppState инициализировано для Spring Boot (Socket.IO порт 3001)');
+        console.log('✅ AppState инициализировано для работы с фильмами');
     },
 
     _getElement(elementKey) {
@@ -61,10 +61,10 @@ window.AppState = {
             usersSection: 'users-section',
             currentRoomName: 'current-room-name',
             leaveRoomBtn: 'leave-room-btn',
-            selectVideos: 'videos',
+            selectMovies: 'movies',
             btnLoad: 'btn-load',
             videoPlayer: 'videoPlayer',
-            videoList: 'video-list',
+            movieList: 'movie-list',
             statusSection: 'status',
             statusVideo: 'status-video',
             statusState: 'status-state',
@@ -75,13 +75,13 @@ window.AppState = {
 
         const elementId = elementMap[elementKey];
         if (!elementId) {
-            console.warn(`❌ Неизвестный ключ элемента: ${elementKey}`);
+            console.warn(`⚠ Неизвестный ключ элемента: ${elementKey}`);
             return null;
         }
 
         const element = document.getElementById(elementId);
         if (!element) {
-            console.error(`❌ Элемент не найден: ${elementId}`);
+            console.error(`⚠ Элемент не найден: ${elementId}`);
             return null;
         }
 
@@ -96,7 +96,7 @@ window.AppState = {
         });
 
         this.socket.on('connect_error', (error) => {
-            console.error('❌ Ошибка подключения к Socket.IO серверу (порт 3001):', error);
+            console.error('⚠ Ошибка подключения к Socket.IO серверу (порт 3001):', error);
             this._showConnectionError('Не удается подключиться к Socket.IO серверу. Проверьте что сервер запущен на порту 3001.');
         });
 
@@ -113,7 +113,7 @@ window.AppState = {
         });
 
         this.socket.on('reconnect_error', (error) => {
-            console.error('❌ Ошибка переподключения:', error);
+            console.error('⚠ Ошибка переподключения:', error);
         });
     },
 
