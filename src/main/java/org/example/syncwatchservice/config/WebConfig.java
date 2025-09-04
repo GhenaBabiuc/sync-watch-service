@@ -13,27 +13,22 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedOriginPatterns(
+                        "http://localhost:5173",
+                        "http://localhost:3000",
+                        "http://127.0.0.1:5173",
+                        "http://127.0.0.1:3000"
+                )
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")
-                .allowCredentials(true);
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/css/**")
-                .addResourceLocations("classpath:/static/css/")
+        registry.addResourceHandler("/static/**")
+                .addResourceLocations("classpath:/static/")
                 .setCachePeriod(86400);
-
-        registry.addResourceHandler("/js/**")
-                .addResourceLocations("classpath:/static/js/")
-                .setCachePeriod(86400);
-
-        registry.addResourceHandler("/styles/**")
-                .addResourceLocations("classpath:/static/styles/")
-                .setCachePeriod(86400);
-
-        registry.addResourceHandler("/**")
-                .addResourceLocations("classpath:/static/");
     }
 }
