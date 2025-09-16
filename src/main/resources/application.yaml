@@ -1,76 +1,59 @@
 server:
-  port: 3000
-
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/movie_storage
-    username: movie_user
-    password: movie_password
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-
-  web:
-    resources:
-      static-locations: classpath:/static/
-      cache:
-        period: 86400
-
-  cache:
-    type: simple
-    cache-names:
-      - moviesList
-      - movieDetails
-
-socketio:
-  hostname: 0.0.0.0
-  port: 3001
-  boss-threads: 1
-  worker-threads: 100
-  allow-custom-requests: true
-  upgrade-timeout: 10000
-  ping-timeout: 60000
-  ping-interval: 25000
-
-minio:
-  endpoint: http://localhost:9000
-  bucket: movie-storage
-  access-key: minio_access_key
-  secret-key: minio_secret_key
+  port: 8082
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  # Оптимизация для стриминга
+  tomcat:
+    connection-timeout: 20000
+    max-connections: 200
+    threads:
+      max: 200
+      min-spare: 10
 
 app:
-  video:
-    cache-ttl: 300000
+  movies:
+    directory: ./movies
 
+spring:
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+
+  websocket:
+    sockjs:
+      heartbeat-time: 25000
+      disconnect-delay: 5000
+
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+
+  # Оптимизация для статических ресурсов
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          max-age: 0
+          no-cache: true
+          no-store: true
+
+# Настройки логирования
 logging:
   level:
-    com.corundumstudio.socketio: INFO
     org.example.syncwatchservice: DEBUG
-    org.springframework.web: INFO
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-  file:
-    name: logs/sync-watch.log
-    max-size: 10MB
-    max-history: 30
+    org.springframework.web.socket: DEBUG
+    # Убираем избыточные логи
+    org.apache.coyote.http11.Http11InputBuffer: WARN
+    org.apache.coyote.http11.Http11Processor: WARN
 
+# Настройки JVM для улучшения работы со стримингом
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,cache
-  endpoint:
-    health:
-      show-details: when_authorized
+        include: health,info

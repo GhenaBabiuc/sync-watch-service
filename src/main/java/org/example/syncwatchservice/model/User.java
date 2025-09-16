@@ -1,27 +1,42 @@
 package org.example.syncwatchservice.model;
 
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class User {
-    private String nickname;
-    private double currentTime;
-    private LocalDateTime lastUpdate;
+    @EqualsAndHashCode.Include
+    private String id;
+    private String username;
+    private double currentTime; // user's current playback time
+    private LocalDateTime joinedAt;
+    private LocalDateTime lastSeen;
+    private boolean isConnected;
 
-    public User(String nickname) {
-        this.nickname = nickname;
-        this.currentTime = 0;
-        this.lastUpdate = LocalDateTime.now();
+    public User(String id, String username) {
+        this.id = id;
+        this.username = username;
+        this.joinedAt = LocalDateTime.now();
+        this.lastSeen = LocalDateTime.now();
+        this.isConnected = true;
+        this.currentTime = 0.0;
     }
 
-    public void updateTime(double time) {
-        this.currentTime = time;
-        this.lastUpdate = LocalDateTime.now();
+    public String getFormattedCurrentTime() {
+        long totalSeconds = (long) currentTime;
+        long hours = totalSeconds / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+
+        if (hours > 0) {
+            return String.format("%d:%02d:%02d", hours, minutes, seconds);
+        } else {
+            return String.format("%d:%02d", minutes, seconds);
+        }
     }
 }
