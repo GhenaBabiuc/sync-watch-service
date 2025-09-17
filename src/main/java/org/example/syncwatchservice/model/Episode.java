@@ -9,12 +9,16 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Movie {
+public class Episode {
     private Long id;
+    private Long seasonId;
+    private Integer episodeNumber;
     private String title;
     private String description;
-    private Integer year;
     private Integer duration;
+    private Integer seasonNumber;
+    private Long seriesId;
+    private String seriesTitle;
     private String coverUrl;
     private String streamUrl;
     private List<FileInfo> files;
@@ -24,9 +28,9 @@ public class Movie {
         long hours = duration / 60;
         long minutes = duration % 60;
         if (hours > 0) {
-            return String.format("%d:%02d:00", hours, minutes);
+            return String.format("%d:%02d:%02d", hours, minutes, 0);
         } else {
-            return String.format("%d:00", minutes);
+            return String.format("%d:%02d", minutes, 0);
         }
     }
 
@@ -38,9 +42,16 @@ public class Movie {
                     .filter(f -> "COVER".equals(f.getFileType()))
                     .map(FileInfo::getDownloadUrl)
                     .findFirst()
-                    .orElse("/images/default-movie-cover.jpg");
+                    .orElse("/images/default-episode-cover.jpg");
         }
 
-        return "/images/default-movie-cover.jpg";
+        return "/images/default-episode-cover.jpg";
+    }
+
+    public String getEpisodeTitle() {
+        if (title != null && !title.trim().isEmpty()) {
+            return title;
+        }
+        return String.format("Episode %d", episodeNumber);
     }
 }

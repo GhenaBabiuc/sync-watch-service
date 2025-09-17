@@ -88,6 +88,47 @@
             font-size: 18px;
             display: none;
         }
+
+        .episode-controls {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .episode-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+        }
+
+        .episode-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .episode-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .episode-item.active {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .episode-item:last-child {
+            border-bottom: none;
+        }
+
+        .content-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -129,33 +170,55 @@
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="fas fa-film me-2"></i>
-                        <span th:text="${room.movie.title}"></span>
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-6">
+            <div class="content-info">
+                <h5 class="mb-3">
+                    <i class="fas fa-film me-2" th:if="${room.roomType.name() == 'MOVIE'}"></i>
+                    <i class="fas fa-tv me-2" th:if="${room.roomType.name() == 'SERIES'}"></i>
+                    <span th:text="${room.contentTitle}"></span>
+                </h5>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div th:if="${room.roomType.name() == 'MOVIE'}">
                             <p class="mb-1">
                                 <i class="fas fa-clock me-2"></i>
                                 Duration: <span th:text="${room.movie.formattedDuration}"></span>
                             </p>
-                            <p class="mb-1">
-                                <i class="fas fa-file-video me-2"></i>
-                                Format: <span th:text="${room.movie.format.toUpperCase()}"></span>
+                            <p class="mb-1" th:if="${room.movie.year}">
+                                <i class="fas fa-calendar me-2"></i>
+                                Year: <span th:text="${room.movie.year}"></span>
                             </p>
                         </div>
-                        <div class="col-md-6">
+
+                        <div th:if="${room.roomType.name() == 'SERIES'}">
                             <p class="mb-1">
-                                <i class="fas fa-users me-2"></i>
-                                Viewers: <span id="userCount" th:text="${room.userCount}"></span>
+                                <i class="fas fa-tv me-2"></i>
+                                Series: <span th:text="${room.series.title}"></span>
                             </p>
-                            <p class="mb-1">
-                                <i class="fas fa-door-open me-2"></i>
-                                Room ID: <code th:text="${room.id}"></code>
+                            <p class="mb-1" th:if="${room.currentEpisode}">
+                                <i class="fas fa-play-circle me-2"></i>
+                                Current: S<span th:text="${room.currentEpisode.seasonNumber}"></span>E<span th:text="${room.currentEpisode.episodeNumber}"></span>
+                                - <span th:text="${room.currentEpisode.episodeTitle}"></span>
+                            </p>
+                            <p class="mb-1" th:if="${room.currentEpisode and room.currentEpisode.duration}">
+                                <i class="fas fa-clock me-2"></i>
+                                Duration: <span th:text="${room.currentEpisode.formattedDuration}"></span>
                             </p>
                         </div>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1">
+                            <i class="fas fa-users me-2"></i>
+                            Viewers: <span id="userCount" th:text="${room.userCount}"></span>
+                        </p>
+                        <p class="mb-1">
+                            <i class="fas fa-door-open me-2"></i>
+                            Room ID: <code th:text="${room.id}"></code>
+                        </p>
+                        <p class="mb-1">
+                            <i class="fas fa-tag me-2"></i>
+                            Type: <span class="badge bg-info" th:text="${room.roomType.name().toLowerCase()}"></span>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -163,6 +226,36 @@
 
         <div class="col-lg-3">
             <div class="sidebar">
+                <div th:if="${room.roomType.name() == 'SERIES' and isHost}" class="episode-controls">
+                    <h6 class="mb-3">
+                        <i class="fas fa-cog me-2"></i>
+                        Episode Controls
+                    </h6>
+
+                    <div class="d-grid gap-2 mb-3">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="previousEpisode()">
+                            <i class="fas fa-step-backward me-1"></i>Previous Episode
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="nextEpisode()">
+                            <i class="fas fa-step-forward me-1"></i>Next Episode
+                        </button>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small">Quick Jump:</label>
+                        <div class="episode-list" id="episodeList" th:if="${availableEpisodes}">
+                            <div class="episode-item"
+                                 th:each="episode : ${availableEpisodes}"
+                                 th:attr="data-episode-id=${episode.id}"
+                                 th:classappend="${room.currentEpisodeId == episode.id} ? 'active' : ''"
+                                 onclick="switchToEpisode(this)">
+                                <div class="fw-bold">S<span th:text="${episode.seasonNumber}"></span>E<span th:text="${episode.episodeNumber}"></span></div>
+                                <div class="small text-muted" th:text="${episode.episodeTitle}"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="p-3">
                     <h6 class="mb-3">
                         <i class="fas fa-users me-2"></i>
@@ -196,6 +289,8 @@
     const currentUserId = [[${currentUser.id}]];
     const currentUsername = [[${currentUser.username}]];
     const isHost = [[${isHost}]];
+    const roomType = [[${room.roomType.name()}]];
+    const currentEpisodeId = [[${room.currentEpisodeId}]] || 0;
 
     let stompClient = null;
     let isConnected = false;
@@ -265,6 +360,13 @@
             const state = JSON.parse(message.body);
             syncVideoState(state);
         });
+
+        if (roomType === 'SERIES') {
+            stompClient.subscribe('/topic/room/' + roomId + '/episodeChanged', function (message) {
+                const data = JSON.parse(message.body);
+                handleEpisodeChange(data);
+            });
+        }
     }
 
     function joinRoom() {
@@ -311,7 +413,6 @@
                 break;
         }
 
-        // Always update current user time immediately after sync action
         setTimeout(() => {
             updateCurrentUserTime();
         }, 100);
@@ -319,6 +420,26 @@
         debounceTimeout = setTimeout(() => {
             isSyncAction = false;
         }, 500);
+    }
+
+    function handleEpisodeChange(data) {
+        console.log('Episode change:', data);
+
+        if (data.userId === currentUserId) return;
+
+        if (data.streamUrl) {
+            video.src = data.streamUrl;
+            video.currentTime = 0;
+            video.pause();
+
+            showSyncIndicator('Episode Changed');
+
+            updateEpisodeList(data.episodeId);
+
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
     }
 
     function updateCurrentUserTime() {
@@ -336,6 +457,10 @@
     function syncVideoState(state) {
         console.log('Syncing video state:', state);
         isSyncAction = true;
+
+        if (state.streamUrl && video.src !== state.streamUrl) {
+            video.src = state.streamUrl;
+        }
 
         video.currentTime = state.currentTime;
         if (state.isPlaying) {
@@ -384,6 +509,69 @@
             `;
 
             userList.appendChild(userDiv);
+        });
+    }
+
+    function switchToEpisode(episodeElement) {
+        if (!isHost) {
+            alert('Only the host can change episodes');
+            return;
+        }
+
+        const episodeId = parseInt(episodeElement.getAttribute('data-episode-id'));
+
+        if (isConnected) {
+            stompClient.publish({
+                destination: '/app/room/' + roomId + '/switchEpisode',
+                body: JSON.stringify({
+                    userId: currentUserId,
+                    episodeId: episodeId
+                })
+            });
+        }
+    }
+
+    function nextEpisode() {
+        if (!isHost) {
+            alert('Only the host can change episodes');
+            return;
+        }
+
+        if (isConnected) {
+            stompClient.publish({
+                destination: '/app/room/' + roomId + '/nextEpisode',
+                body: JSON.stringify({
+                    userId: currentUserId
+                })
+            });
+        }
+    }
+
+    function previousEpisode() {
+        if (!isHost) {
+            alert('Only the host can change episodes');
+            return;
+        }
+
+        if (isConnected) {
+            stompClient.publish({
+                destination: '/app/room/' + roomId + '/previousEpisode',
+                body: JSON.stringify({
+                    userId: currentUserId
+                })
+            });
+        }
+    }
+
+    function updateEpisodeList(activeEpisodeId) {
+        const episodeItems = document.querySelectorAll('.episode-item');
+        episodeItems.forEach(item => {
+            const episodeId = parseInt(item.getAttribute('data-episode-id'));
+            if (episodeId === activeEpisodeId) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
         });
     }
 

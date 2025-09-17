@@ -51,7 +51,6 @@ public class WebSocketController {
         }
 
         roomService.updateRoomState(roomId, currentTime, true, userId);
-        // Update time for all users in the room to sync them
         roomService.updateAllUsersTime(roomId, currentTime);
 
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/sync", Map.of(
@@ -77,7 +76,6 @@ public class WebSocketController {
         }
 
         roomService.updateRoomState(roomId, currentTime, false, userId);
-        // Update time for all users in the room to sync them
         roomService.updateAllUsersTime(roomId, currentTime);
 
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/sync", Map.of(
@@ -103,7 +101,6 @@ public class WebSocketController {
         }
 
         roomService.updateRoomState(roomId, currentTime, false, userId);
-        // Update time for all users in the room to sync them
         roomService.updateAllUsersTime(roomId, currentTime);
 
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/sync", Map.of(
@@ -139,7 +136,10 @@ public class WebSocketController {
                     Map.of(
                             "currentTime", room.getCurrentTime(),
                             "isPlaying", room.isPlaying(),
-                            "lastActionUserId", room.getLastActionUserId() != null ? room.getLastActionUserId() : ""
+                            "lastActionUserId", room.getLastActionUserId() != null ? room.getLastActionUserId() : "",
+                            "streamUrl", room.getStreamUrl() != null ? room.getStreamUrl() : "",
+                            "roomType", room.getRoomType().name(),
+                            "currentEpisodeId", room.getCurrentEpisodeId() != null ? room.getCurrentEpisodeId() : 0
                     )
             );
         });
@@ -155,6 +155,174 @@ public class WebSocketController {
 
         messagingTemplate.convertAndSend("/topic/room/" + roomId + "/userLeft", Map.of(
                 "userId", userId
+        ));
+    }
+
+    @MessageMapping("/room/{roomId}/switchEpisode")
+    public void handleSwitchEpisode(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+        Long episodeId = ((Number) payload.get("episodeId")).longValue();
+
+        log.info("Switch episode action in room {} by user {} to episode {}", roomId, userId, episodeId);
+
+        if (!roomService.isHost(roomId, userId)) {
+            log.warn("User {} is not host of room {}, cannot switch episode", userId, roomId);
+            messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                    "error", "Only host can switch episodes"
+            ));
+            return;
+        }
+
+        boolean success = roomService.switchEpisode(roomId, episodeId, userId);
+
+        if (success) {
+            roomService.getRoomById(roomId).ifPresent(room -> {
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/episodeChanged", Map.of(
+                        "action", "episodeChanged",
+                        "episodeId", episodeId,
+                        "streamUrl", room.getStreamUrl(),
+                        "episode", room.getCurrentEpisode(),
+                        "userId", userId,
+                        "timestamp", System.currentTimeMillis()
+                ));
+            });
+        } else {
+            messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                    "error", "Failed to switch episode"
+            ));
+        }
+
+        updateRoomUsers(roomId);
+    }
+
+    @MessageMapping("/room/{roomId}/nextEpisode")
+    public void handleNextEpisode(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+
+        log.info("Next episode action in room {} by user {}", roomId, userId);
+
+        if (!roomService.isHost(roomId, userId)) {
+            log.warn("User {} is not host of room {}, cannot switch to next episode", userId, roomId);
+            messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                    "error", "Only host can switch episodes"
+            ));
+            return;
+        }
+
+        boolean success = roomService.switchToNextEpisode(roomId, userId);
+
+        if (success) {
+            roomService.getRoomById(roomId).ifPresent(room -> {
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/episodeChanged", Map.of(
+                        "action", "nextEpisode",
+                        "episodeId", room.getCurrentEpisodeId(),
+                        "streamUrl", room.getStreamUrl(),
+                        "episode", room.getCurrentEpisode(),
+                        "userId", userId,
+                        "timestamp", System.currentTimeMillis()
+                ));
+            });
+        } else {
+            messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                    "error", "No next episode available"
+            ));
+        }
+
+        updateRoomUsers(roomId);
+    }
+
+    @MessageMapping("/room/{roomId}/previousEpisode")
+    public void handlePreviousEpisode(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+
+        log.info("Previous episode action in room {} by user {}", roomId, userId);
+
+        if (!roomService.isHost(roomId, userId)) {
+            log.warn("User {} is not host of room {}, cannot switch to previous episode", userId, roomId);
+            messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                    "error", "Only host can switch episodes"
+            ));
+            return;
+        }
+
+        boolean success = roomService.switchToPreviousEpisode(roomId, userId);
+
+        if (success) {
+            roomService.getRoomById(roomId).ifPresent(room -> {
+                messagingTemplate.convertAndSend("/topic/room/" + roomId + "/episodeChanged", Map.of(
+                        "action", "previousEpisode",
+                        "episodeId", room.getCurrentEpisodeId(),
+                        "streamUrl", room.getStreamUrl(),
+                        "episode", room.getCurrentEpisode(),
+                        "userId", userId,
+                        "timestamp", System.currentTimeMillis()
+                ));
+            });
+        } else {
+            messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                    "error", "No previous episode available"
+            ));
+        }
+
+        updateRoomUsers(roomId);
+    }
+
+    @MessageMapping("/room/{roomId}/getAvailableEpisodes")
+    public void handleGetAvailableEpisodes(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+
+        log.debug("Get available episodes request from user {} in room {}", userId, roomId);
+
+        var availableEpisodes = roomService.getAvailableEpisodes(roomId);
+
+        messagingTemplate.convertAndSendToUser(userId, "/queue/room/" + roomId + "/availableEpisodes", Map.of(
+                "episodes", availableEpisodes,
+                "timestamp", System.currentTimeMillis()
+        ));
+    }
+
+    @MessageMapping("/room/{roomId}/getRoomInfo")
+    public void handleGetRoomInfo(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+
+        log.debug("Get room info request from user {} for room {}", userId, roomId);
+
+        roomService.getRoomById(roomId).ifPresentOrElse(
+                room -> {
+                    messagingTemplate.convertAndSendToUser(userId, "/queue/room/" + roomId + "/roomInfo", Map.of(
+                            "room", Map.of(
+                                    "id", room.getId(),
+                                    "name", room.getName(),
+                                    "roomType", room.getRoomType().name(),
+                                    "currentTime", room.getCurrentTime(),
+                                    "isPlaying", room.isPlaying(),
+                                    "userCount", room.getUserCount(),
+                                    "streamUrl", room.getStreamUrl() != null ? room.getStreamUrl() : "",
+                                    "currentEpisodeId", room.getCurrentEpisodeId() != null ? room.getCurrentEpisodeId() : 0,
+                                    "contentTitle", room.getContentTitle()
+                            ),
+                            "timestamp", System.currentTimeMillis()
+                    ));
+                },
+                () -> {
+                    messagingTemplate.convertAndSendToUser(userId, "/queue/error", Map.of(
+                            "error", "Room not found: " + roomId
+                    ));
+                }
+        );
+    }
+
+    @MessageMapping("/room/{roomId}/changeQuality")
+    public void handleChangeQuality(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+        String quality = (String) payload.get("quality");
+
+        log.info("Quality change request in room {} by user {} to quality {}", roomId, userId, quality);
+
+        messagingTemplate.convertAndSend("/topic/room/" + roomId + "/qualityChanged", Map.of(
+                "quality", quality,
+                "userId", userId,
+                "timestamp", System.currentTimeMillis()
         ));
     }
 
@@ -190,6 +358,30 @@ public class WebSocketController {
         roomService.getRoomById(roomId).ifPresent(room -> {
             messagingTemplate.convertAndSend("/topic/room/" + roomId + "/users",
                     room.getUsers());
+        });
+    }
+
+    @MessageMapping("/room/{roomId}/ping")
+    public void handlePing(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+
+        messagingTemplate.convertAndSendToUser(userId, "/queue/pong", Map.of(
+                "timestamp", System.currentTimeMillis()
+        ));
+    }
+
+    @MessageMapping("/room/{roomId}/heartbeat")
+    public void handleHeartbeat(@DestinationVariable String roomId, @Payload Map<String, Object> payload) {
+        String userId = (String) payload.get("userId");
+
+        roomService.getRoomById(roomId).ifPresent(room -> {
+            room.getUsers().stream()
+                    .filter(user -> user.getId().equals(userId))
+                    .findFirst()
+                    .ifPresent(user -> {
+                        user.setLastSeen(java.time.LocalDateTime.now());
+                        user.setConnected(true);
+                    });
         });
     }
 }

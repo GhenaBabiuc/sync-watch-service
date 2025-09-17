@@ -5,7 +5,6 @@ server:
       charset: UTF-8
       enabled: true
       force: true
-  # Оптимизация для стриминга
   tomcat:
     connection-timeout: 20000
     max-connections: 200
@@ -14,8 +13,9 @@ server:
       min-spare: 10
 
 app:
-  movies:
-    directory: ./movies
+  storage:
+    api:
+      url: http://localhost:8081/api
 
 spring:
   thymeleaf:
@@ -33,7 +33,6 @@ spring:
       max-file-size: 2GB
       max-request-size: 2GB
 
-  # Оптимизация для статических ресурсов
   web:
     resources:
       cache:
@@ -42,16 +41,14 @@ spring:
           no-cache: true
           no-store: true
 
-# Настройки логирования
 logging:
   level:
     org.example.syncwatchservice: DEBUG
     org.springframework.web.socket: DEBUG
-    # Убираем избыточные логи
+    org.springframework.web.client: DEBUG
     org.apache.coyote.http11.Http11InputBuffer: WARN
     org.apache.coyote.http11.Http11Processor: WARN
 
-# Настройки JVM для улучшения работы со стримингом
 management:
   endpoints:
     web:

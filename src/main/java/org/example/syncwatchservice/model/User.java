@@ -13,7 +13,7 @@ public class User {
     @EqualsAndHashCode.Include
     private String id;
     private String username;
-    private double currentTime; // user's current playback time
+    private double currentTime;
     private LocalDateTime joinedAt;
     private LocalDateTime lastSeen;
     private boolean isConnected;
